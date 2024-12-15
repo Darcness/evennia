@@ -474,14 +474,14 @@ class CmdWho(COMMAND_DEFAULT_CLASS):
         if show_session_data:
             # privileged info
             table = self.styled_table(
-                "|wAccount",
+                "|wName",
                 "|wOn for",
                 "|wIdle",
                 "|wPuppeting",
                 "|wRoom",
                 "|wCmds",
                 "|wProtocol",
-                "|wHost"
+                "|wHost",
             )
             for session in session_list:
                 if not session.logged_in:
