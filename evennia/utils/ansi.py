@@ -118,7 +118,7 @@ ANSI_BACK_CYAN = "\033[46m"
 ANSI_BACK_WHITE = "\033[47m"
 
 # Formatting Characters
-ANSI_RETURN = "\r\n"
+ANSI_RETURN = "\n"
 ANSI_TAB = "\t"
 ANSI_SPACE = " "
 
