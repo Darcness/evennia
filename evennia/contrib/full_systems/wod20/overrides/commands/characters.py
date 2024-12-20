@@ -20,7 +20,6 @@ class CmdPlusOOC(account.CmdOOC):
 
     key = "+ooc"
 
-
 class CmdOOC(COMMAND_DEFAULT_CLASS):
     """
     OOCly speak as your character
