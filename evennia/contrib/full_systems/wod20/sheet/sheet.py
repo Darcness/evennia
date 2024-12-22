@@ -63,9 +63,6 @@ class Sheet(DefaultObject):
         abil_blocks = self.abilities.get_formatted_blocks()
 
         return str(evtable.EvTable(
-            "",
-            "Attributes",
-            "",
             table=[
                 [str_physicals, "Talents", abil_blocks[0]],
                 [str_socials, "Skills", abil_blocks[1]],
@@ -138,7 +135,7 @@ class SheetAbilities(DefaultObject):
         self.skills.add("stealth", "Stealth", type="static", base=0)
         self.skills.add("survival", "Survival", type="static", base=0)
 
-        # Notes: Performance = Art (in Talents), Buh bye Martial Arts and Research
+        # Notes: Performance = Art (in Talents), Buh bye Martial Arts
 
         # add Knowledges
         self.knowledges.add("academics", "Academics", type="static", base=0)
