@@ -1,12 +1,12 @@
 from django.conf import settings  # type: ignore
 
-from evennia.commands.default import account
+from evennia.commands.default.account import CmdOOC as OOCCmd
 from evennia.utils import utils
 
 COMMAND_DEFAULT_CLASS = utils.class_from_module(settings.COMMAND_DEFAULT_CLASS)
 
 
-class CmdPlusOOC(account.CmdOOC):
+class CmdPlusOOC(OOCCmd):
     """
     stop puppeting and go ooc
 
