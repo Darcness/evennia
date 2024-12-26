@@ -6,61 +6,29 @@ from evennia.utils import lazy_property, evtable
 from typing import List
 
 
-def create_sheet_obj(cls, caller, key_suffix):
-    sheet_key = f"{caller.key}::{key_suffix}"
+class SheetManager:
+    @staticmethod
+    def create_sheet_obj(cls, caller, key_suffix):
+        sheet_key = f"{caller.key}::{key_suffix}"
 
-    found_objs = evennia.search_object(sheet_key)
-    if found_objs and len(found_objs) == 1:
-        return found_objs[0]
-    elif len(found_objs) > 1:
-        # ... what do we do here?  Fling an error?
-        print("Found multiple items for search: " + repr(found_objs))
-        pass
-        # else we have none, so carry on.
+        found_objs = evennia.search_object(sheet_key)
+        if found_objs and len(found_objs) == 1:
+            return found_objs[0]
+        elif len(found_objs) > 1:
+            # ... what do we do here?  Fling an error?
+            print("Found multiple items for search: " + repr(found_objs))
+            pass
+            # else we have none, so carry on.
 
-    obj = cls(db_key=sheet_key, db_location=caller)
-    obj.save()
-    return obj
-
-
-class Sheet(DefaultObject):
+        obj = evennia.create_object(cls, key=sheet_key, location=caller)
+        return obj
 
     @staticmethod
-    def create(caller: DefaultCharacter) -> 'Sheet':
-        return create_sheet_obj(Sheet, caller, "Sheet")
-
-    @lazy_property
-    def attribs(self) -> TraitHandler:
-        return TraitHandler(self, db_attribute_key="attribs")
-    
-    @lazy_property
-    def abilities(self) -> 'SheetAbilities':
-        return SheetAbilities.create(self)
-
-    # Object runtime handlers
-    def at_object_creation(self):
-        # Add the attributes
-        self.attribs.add('strength', 'Strength', trait_type="ability", base=1)
-        self.attribs.add('dexterity', 'Dexterity', trait_type="ability", base=1)
-        self.attribs.add('stamina', 'Stamina', trait_type="ability", base=1)
-        self.attribs.add('charisma', 'Charisma', trait_type="ability", base=1)
-        self.attribs.add('manipulation', 'Manipulation', trait_type="ability", base=1)
-        self.attribs.add('appearance', 'Appearance', trait_type="ability", base=1)
-        self.attribs.add('perception', 'Perception', trait_type="ability", base=1)
-        self.attribs.add('intelligence', 'Intelligence', trait_type="ability", base=1)
-        self.attribs.add('wits', 'Wits', trait_type="ability", base=1)
-
-    def at_object_delete(self):
-        #kill any sub objects
-        self.abilities.delete()
-        return True
-        
-    # Methods
-    def get_trait_display(self, prop: TraitProperty, width) -> str:
+    def get_trait_display(prop: TraitProperty, width) -> str:
         val_display = " " + str(int(prop.base))
         val_display += ((" ({})".format(str(int(prop.value)))) if prop.value != prop.base else "")
 
-        display_width = width - len(val_display) - 3 # 1-space padding and a column border
+        display_width = width - len(val_display) - 3  # 1-space padding and a column border
 
         # print("get_trait_display: width ({}) - val_display ({}) - name len ({}) display_width ({}), chars ({})".format(
         #     str(width),
@@ -76,12 +44,13 @@ class Sheet(DefaultObject):
 
         return trait_display
 
-    def get_formatted_block(self, sections: List[List[str]], width: int, **tableArgs) -> str:
+    @staticmethod
+    def get_formatted_block(sections: List[List[str]], width: int, **tableArgs) -> str:
         col_width = width // len(sections)
-        col_mod = (width - (len(sections) + 1)) % len(sections)
+        col_mod = (width - len(sections)) % len(sections)
 
         table = evtable.EvTable(
-            table=[sections[0], sections[1], sections[2]],
+            table=sections,
             header=False,
             border="cols",
             border_left_char="|m|||n",
@@ -90,12 +59,13 @@ class Sheet(DefaultObject):
             **tableArgs)
 
         for col in range(len(sections)):
-            wid = (col_width + 1) if col_mod >= col else col_width
+            wid = (col_width + 1) if col_mod > col else col_width
             table.reformat_column(col, width=wid)
 
         return str(table)
 
-    def get_formatted_trait_block(self, traits: List[List[TraitProperty]], width: int, **tableArgs) -> str:
+    @staticmethod
+    def get_formatted_trait_block(traits: List[List[TraitProperty]], width: int, **tableArgs) -> str:
         col_width = width // len(traits)
         col_mod = (width - (len(traits) + 1)) % len(traits)
 
@@ -106,49 +76,84 @@ class Sheet(DefaultObject):
 
             for _, trait in enumerate(group):
                 wid = (col_width + 1) if col_mod >= i else col_width
-                wid = (wid - 1) if i == 0 else wid # We lose a character on the first column because of borders.
-                # print("Trait Format: " + trait.name + " -- " + str(wid))
+                # We lose a character on the first column because of borders.
+                wid = (wid - 1) if i == 0 else wid
+
                 if hasattr(trait, 'base') and hasattr(trait, 'value'):
-                    sections[i].append(self.get_trait_display(trait, wid))
+                    sections[i].append(SheetManager.get_trait_display(trait, wid))
                 else:
                     sections[i].append(trait.name + ": " + trait.value)
+        
+        data = []
+        for section in sections:
+            data.append(["\n".join(section)])
 
-        table = evtable.EvTable(
-            table=[["\n".join(sections[0])], ["\n".join(sections[1])], ["\n".join(sections[2])]],
-            header=False,
-            border="cols",
-            border_left_char="|m|||n",
-            border_right_char="|m|||n",
-            valign="t",
-            **tableArgs)
+        return SheetManager.get_formatted_block(data, width, **tableArgs)
 
-        for col in range(len(sections)):
-            wid = (col_width + 1) if col_mod >= col else col_width
-            # print("Table column format: " + str(wid))
-            table.reformat_column(col, width=wid)
+class Sheet(DefaultObject):
 
-        return str(table)
+    @staticmethod
+    def construct(caller: DefaultCharacter) -> 'Sheet':
+        return SheetManager.create_sheet_obj(Sheet, caller, "Sheet")
 
-    def get_formatted_display(self, width: int) -> str:
-        top = "|m+" + ("=" * (width - 2)) + "+|n"
+    @lazy_property
+    def vitals(self) -> TraitHandler:
+        return TraitHandler(self, db_attribute_key="vitals")
+
+    @lazy_property
+    def attribs(self) -> TraitHandler:
+        return TraitHandler(self, db_attribute_key="attribs")
+
+    @lazy_property
+    def abilities(self) -> 'SheetAbilities':
+        return SheetAbilities.construct(self)
+
+    # Object runtime handlers
+    def at_object_creation(self):
+        # Add common vitals
+        self.vitals.add('fullname', "Full Name", trait_type="trait", value="")
+        self.vitals.add('concept', "Concept", trait_type="trait", value="")
+
+        # Add the attributes
+        self.attribs.add('strength', 'Strength', trait_type="ability", base=1)
+        self.attribs.add('dexterity', 'Dexterity', trait_type="ability", base=1)
+        self.attribs.add('stamina', 'Stamina', trait_type="ability", base=1)
+        self.attribs.add('charisma', 'Charisma', trait_type="ability", base=1)
+        self.attribs.add('manipulation', 'Manipulation', trait_type="ability", base=1)
+        self.attribs.add('appearance', 'Appearance', trait_type="ability", base=1)
+        self.attribs.add('perception', 'Perception', trait_type="ability", base=1)
+        self.attribs.add('intelligence', 'Intelligence', trait_type="ability", base=1)
+        self.attribs.add('wits', 'Wits', trait_type="ability", base=1)
+
+    def at_object_delete(self):
+        # kill any sub objects
+        self.abilities.delete()
+        return True
+
+    # Methods
+    def get_formatted_display(self, target: DefaultCharacter,  width: int) -> str:
+        # We add 8 for all of the color characters being stripped out, -2 for the edges.
+        top = "|m+" + (f"|n|h[ {target.name} ]|n|m").center(width + 6, "=") + "+|n"
         separator = "|m+" + ("-" * (width - 2)) + "+|n"
+
         physicals = list(map(self.attribs.get, ["strength", "dexterity", "stamina"]))
-
         socials = list(map(self.attribs.get, ["charisma", "manipulation", "appearance"]))
-
         mentals = list(map(self.attribs.get, ["perception", "intelligence", "wits"]))
 
         abil_blocks = self.abilities.get_trait_blocks()
 
         blocks = []
         blocks.append(top)
-        blocks.append(self.get_formatted_block(
-            [["Physical"], ["Social"], ["Mental"]], width, align="c"))
-        blocks.append(self.get_formatted_trait_block([physicals, socials, mentals], width))
+        blocks.append(SheetManager.get_formatted_trait_block(
+            [[self.vitals.fullname, self.vitals.concept], []], width))
         blocks.append(separator)
-        blocks.append(self.get_formatted_block(
+        blocks.append(SheetManager.get_formatted_block(
+            [["Physical"], ["Social"], ["Mental"]], width, align="c"))
+        blocks.append(SheetManager.get_formatted_trait_block([physicals, socials, mentals], width))
+        blocks.append(separator)
+        blocks.append(SheetManager.get_formatted_block(
             [["Talents"], ["Skills"], ["Knowledges"]], width, align="c"))
-        blocks.append(self.get_formatted_trait_block(abil_blocks, width))
+        blocks.append(SheetManager.get_formatted_trait_block(abil_blocks, width))
         blocks.append(separator)
 
         return "\n".join(blocks)
@@ -156,8 +161,8 @@ class Sheet(DefaultObject):
 
 class SheetAbilities(DefaultObject):
     @staticmethod
-    def create(caller: Sheet) -> 'SheetAbilities':
-        return create_sheet_obj(SheetAbilities, caller, "Abilities")
+    def construct(caller: Sheet) -> 'SheetAbilities':
+        return SheetManager.create_sheet_obj(SheetAbilities, caller, "Abilities")
 
     @lazy_property
     def talents(self) -> TraitHandler:
@@ -170,9 +175,6 @@ class SheetAbilities(DefaultObject):
     @lazy_property
     def knowledges(self) -> TraitHandler:
         return TraitHandler(self, db_attribute_key="knowledges")
-
-    def get_trait_display(self, prop: TraitProperty) -> str:
-        return f"{prop.name}: {str(int(prop.base))}" + ((" ({})".format(str(int(prop.value)))) if prop.value != prop.base else "")
 
     def get_trait_blocks(self) -> list:
         return [
