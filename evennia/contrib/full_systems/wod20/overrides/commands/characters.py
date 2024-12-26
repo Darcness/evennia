@@ -1,6 +1,6 @@
 from django.conf import settings  # type: ignore
 
-from evennia.commands.default.account import CmdOOC as OOCCmd
+from evennia.commands.default.account import CmdOOC as OOCCmd, CmdIC
 from evennia.utils import utils
 
 COMMAND_DEFAULT_CLASS = utils.class_from_module(settings.COMMAND_DEFAULT_CLASS)
@@ -19,6 +19,9 @@ class CmdPlusOOC(OOCCmd):
     """
 
     key = "+ooc"
+
+class CmdPlusIC(CmdIC):
+    key = "+ic"
 
 class CmdOOC(COMMAND_DEFAULT_CLASS):
     """

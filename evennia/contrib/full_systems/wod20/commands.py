@@ -13,3 +13,4 @@ class Wod20CmdSet(CmdSet):
         self.add(CmdPlusOOC)
         self.add(CmdSetStat)
         self.add(CmdOOC)
+        self.add(CmdPlusIC)
