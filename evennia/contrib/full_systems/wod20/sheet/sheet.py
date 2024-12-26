@@ -83,12 +83,13 @@ class SheetManager:
                     sections[i].append(SheetManager.get_trait_display(trait, wid))
                 else:
                     sections[i].append(trait.name + ": " + trait.value)
-        
+
         data = []
         for section in sections:
             data.append(["\n".join(section)])
 
         return SheetManager.get_formatted_block(data, width, **tableArgs)
+
 
 class Sheet(DefaultObject):
 
@@ -107,6 +108,8 @@ class Sheet(DefaultObject):
     @lazy_property
     def abilities(self) -> 'SheetAbilities':
         return SheetAbilities.construct(self)
+    
+
 
     # Object runtime handlers
     def at_object_creation(self):
@@ -136,6 +139,10 @@ class Sheet(DefaultObject):
         top = "|m+" + (f"|n|h[ {target.name} ]|n|m").center(width + 6, "=") + "+|n"
         separator = "|m+" + ("-" * (width - 2)) + "+|n"
 
+        vitals = self.vitals.all()
+        vitals_mid = (len(vitals) // 2) + (len(vitals) % 2)
+        vital_blocks = [list(map(self.vitals.get, vitals[0:vitals_mid])), list(map(self.vitals.get, vitals[vitals_mid:]))]
+
         physicals = list(map(self.attribs.get, ["strength", "dexterity", "stamina"]))
         socials = list(map(self.attribs.get, ["charisma", "manipulation", "appearance"]))
         mentals = list(map(self.attribs.get, ["perception", "intelligence", "wits"]))
@@ -144,8 +151,7 @@ class Sheet(DefaultObject):
 
         blocks = []
         blocks.append(top)
-        blocks.append(SheetManager.get_formatted_trait_block(
-            [[self.vitals.fullname, self.vitals.concept], []], width))
+        blocks.append(SheetManager.get_formatted_trait_block(vital_blocks, width))
         blocks.append(separator)
         blocks.append(SheetManager.get_formatted_block(
             [["Physical"], ["Social"], ["Mental"]], width, align="c"))
