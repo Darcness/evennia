@@ -154,11 +154,11 @@ class Sheet(DefaultObject):
         blocks.append(SheetManager.get_formatted_trait_block(vital_blocks, width))
         blocks.append(separator)
         blocks.append(SheetManager.get_formatted_block(
-            [["Physical"], ["Social"], ["Mental"]], width, align="c"))
+            [["|hPhysical|n"], ["|hSocial|n"], ["|hMental|n"]], width, align="c"))
         blocks.append(SheetManager.get_formatted_trait_block([physicals, socials, mentals], width))
         blocks.append(separator)
         blocks.append(SheetManager.get_formatted_block(
-            [["Talents"], ["Skills"], ["Knowledges"]], width, align="c"))
+            [["|hTalents|n"], ["|hSkills|n"], ["|hKnowledges|n"]], width, align="c"))
         blocks.append(SheetManager.get_formatted_trait_block(abil_blocks, width))
         blocks.append(separator)
 
