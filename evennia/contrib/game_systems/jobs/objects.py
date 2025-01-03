@@ -6,8 +6,8 @@ from evennia.objects.objects import DefaultObject, DefaultCharacter
 from collections.abc import MutableMapping
 
 
-def __get_player(id: str) -> DefaultCharacter | None:
-    results = evennia.search_object(id)
+def __get_player(id: int) -> DefaultCharacter | None:
+    results = evennia.search_object(f"#{id}")
     if len(results) > 0:
         return results[0]
     else:
@@ -15,159 +15,78 @@ def __get_player(id: str) -> DefaultCharacter | None:
 
 
 class JobsComment:
-    __dict: dict = None
+    # regular fields
+    text: str = ""
+    visibility: int = 0
 
-    __id = 0
+    # translated fields
+    raw_source: int = 0
+    raw_sent: float = 0.0
 
-    def __init__(self, id: int, data: dict):
-        self.__id = id
-        self.__dict = data
-
-    def __init__(self, id: int, source: str, text: str, sent: datetime, vis: int):
-        self.__id = id
-        self.__dict = {
-            'source': source,
-            'text': text,
-            'sent': sent.timestamp(),
-            'vis': vis
-        }
-
-    @property
-    def id(self) -> int:
-        return self.__id
+    def __init__(self, text: str = '', vis: int = 0, raw_source: int = 0, raw_sent: float = 0.0):
+        self.raw_source = raw_source
+        self.text = text
+        self.raw_sent = raw_sent
+        self.visibility = vis
 
     @property
     def sources(self) -> DefaultCharacter | None:
-        return __get_player(self.__dict.get('sources') or '')
-
-    @property
-    def text(self) -> str:
-        return self.__dict.get('text') or ""
+        return __get_player(self.raw_source)
 
     @property
     def sent(self) -> datetime:
-        return datetime.fromtimestamp(self.__dict.get('sent'))
-
-    @property
-    def visibility(self) -> int:
-        return self.__dict.get('vis')
-
-    @visibility.setter
-    def visibility(self, vis: int):
-        self.__dict['vis'] = vis
-
-    def to_dict(self) -> dict:
-        return {self.id: self.__dict}
-
-
-class JobsCommentDict(MutableMapping):
-    def __init__(self, *args, **kwargs):
-        self.store = dict()
-        self.update(dict(*args, **kwargs))  # use the free update to set keys
-
-    def __getitem__(self, key: int) -> JobsComment:
-        return JobsComment(key, self.store[self._keytransform(key)])
-
-    def get(self, key: int) -> JobsComment | None:
-        try:
-            return self.__getitem__(key)
-        except KeyError as ke:
-            return None
-
-    def __setitem__(self, key: int, value: JobsComment):
-        self.store[self._keytransform(key)] = value.to_dict()
-
-    def __delitem__(self, key):
-        del self.store[self._keytransform(key)]
-
-    def __iter__(self):
-        return iter(self.store)
-
-    def items(self) -> list[tuple[int, JobsComment]]:
-        return [(key, self.__getitem__(key)) for key in iter(self.store)]
-
-    def values(self) -> list[JobsComment]:
-        return [self.__getitem__(key) for key in iter(self.store)]
-
-    def __len__(self):
-        return len(self.store)
-
-    def _keytransform(self, key):
-        return key
-
-    def to_raw_dict(self) -> dict[int, dict]:
-        return self.store
-
-    @property
-    def max_id(self) -> int:
-        return max(self.keys())
+        return datetime.fromtimestamp(self.raw_sent)
 
 
 class JobsJob:
-    __dict: dict = None
-
+    # regular fields
     id: int = 0
+    title: str = ''
+    comments: list[JobsComment] = []
 
-    def __init__(self, id: int, data: dict):
+    # calculated fields
+    raw_owner: int = 0
+    raw_opened_on: float = 0.0
+    raw_sources: list[int] = []
+
+    def __init__(self, id: int = 0, title: str = '', comments: list[JobsComment] = [], raw_owner: int = 0, raw_opened_on: float = 0.0, raw_sources: list[int] = []):
         self.id = id
-        self.__dict = data
-
-    @staticmethod
-    def construct(id: int, title: str, source_id: str, first_comment: JobsComment) -> 'JobsJob':
-        obj = JobsJob(id, {
-            'title': title,
-            'sources': [source_id],
-            'comments': first_comment.to_dict()
-        })
-
-        return obj
+        self.title = title
+        self.comments = comments
+        self.raw_owner = raw_owner
+        self.raw_opened_on = raw_opened_on
+        self.raw_sources = raw_sources
 
     @property
     def owner(self) -> DefaultCharacter | None:
-        return __get_player(self.__dict.get('owner') or '')
+        return __get_player(self.raw_owner)
 
     @owner.setter
     def owner(self, value: DefaultCharacter):
-        self.__dict['owner'] = value.id
+        self.raw_owner = value.id
 
     @property
     def opened_on(self) -> datetime:
-        return datetime.fromtimestamp(self.__dict.get('opened_on'))
+        return datetime.fromtimestamp(self.raw_opened_on)
 
     @property
     def sources(self) -> tuple[DefaultCharacter, ...]:
-        if self.__dict.get('sources') is None:
-            self.__dict['sources'] = []
-        return (__get_player(id) for id in self.__dict['sources'])
+        return (__get_player(id) for id in self.raw_sources)
 
     # We don't want to use a setter because we have disparate types
     def update_sources(self, sources: list[DefaultCharacter]):
-        self.__dict['sources'] = [source.id for source in sources]
-
-    @property
-    def title(self) -> str:
-        return self.__dict.get('title') or ""
-
-    @title.setter
-    def title(self, value: str):
-        self.__dict['title'] = value
-
-    @property
-    def comments(self) -> JobsCommentDict:
-        if self.__dict('comments') is None:
-            self.__dict['comments'] = {}
-        return JobsCommentDict(self.__dict['comments'])
+        self.raw_sources = [source.id for source in sources]
 
     def add_comment(self, comment: JobsComment) -> tuple[bool, str]:
         try:
-            self.comments[(self.comments.max_id + 1)] = comment
+            self.comments.append(comment)
             return (True, "")
         except Exception as e:
             return (False, str(e))
 
     def delete_comment(self, id: int) -> tuple[bool, str]:
         try:
-            if self.comments.get(id) is None:
+            if len(self.comments) <= id:
                 return (False, "#-1 INVALID COMMENT ID")
 
             del self.comments[id]
@@ -182,131 +101,43 @@ class JobsJob:
         return False
 
 
-class JobsJobDict(MutableMapping):
-    def __init__(self, *args, **kwargs):
-        self.store = dict()
-        self.update(dict(*args, **kwargs))  # use the free update to set keys
-
-    def __getitem__(self, key: int) -> JobsJob:
-        return JobsJob(key, self.store[self._keytransform(key)])
-
-    def get(self, key: int) -> JobsJob | None:
-        try:
-            return self.__getitem__(key)
-        except KeyError as ke:
-            return None
-
-    def __setitem__(self, key: int, value: JobsJob):
-        self.store[self._keytransform(key)] = value.to_dict()
-
-    def __delitem__(self, key):
-        del self.store[self._keytransform(key)]
-
-    def __iter__(self):
-        return iter(self.store)
-
-    def items(self) -> list[tuple[int, JobsJob]]:
-        return [(key, self.__getitem__(key)) for key in iter(self.store)]
-
-    def values(self) -> list[JobsJob]:
-        return [self.__getitem__(key) for key in iter(self.store)]
-
-    def __len__(self):
-        return len(self.store)
-
-    def _keytransform(self, key):
-        return key
-
-    def to_raw_dict(self) -> dict[int, dict]:
-        return self.store
-
-
 class JobsBucket:
-    __dict: dict = None
-
+    # regular fields
     name: str = ""
+    desc: str = ""
+    jobs: dict[int, JobsJob] = {}
 
-    def __init__(self, name: str, data: dict):
-        self.name = name
-        self.__dict = data
+    # calculated fields
 
-    @property
-    def desc(self) -> str:
-        return self.__dict.get('desc') or ""
+    def __init__(self, name: str, desc: str, jobs: dict[int, JobsJob] = {}):
+        self.name = name.upper()
+        self.desc = desc
+        self.jobs = jobs
 
-    @desc.setter
-    def desc(self, value: str):
-        self.__dict['desc'] = value
-
-    @property
-    def jobs(self) -> JobsJobDict:
-        if self.__dict.get('jobs') is None:
-            self.__dict['jobs'] = {}
-        return JobsJobDict(self.__dict['jobs'])
-
-    def add_job(self, id: int, job: JobsJob) -> tuple[bool, str]:
+    def add_job(self, job: JobsJob) -> tuple[bool, str]:
         try:
-            self.jobs[id] = job
+            if self.jobs.get(job.id) is not None:
+                return (False, "#-1 JOB ID ALREADY EXISTS")
+
+            self.jobs[job.id] = job
             return (True, "")
         except Exception as e:
             return (False, str(e))
 
-    def delete_job(self, id: int) -> tuple[bool, str]:
+    def del_job(self, job_id: int) -> tuple[bool, str]:
         try:
-            if self.jobs.get(id) is None:
-                return (False, "#-1 INVALID JOB ID")
+            if self.jobs.get(job_id) is None:
+                return (False, "#-1 JOB ID DOES NOT EXIST")
 
-            del self.jobs[id]
+            del self.jobs[job_id]
+            return (True, '')
         except Exception as e:
             return (False, str(e))
 
 
-class JobsBucketDict(MutableMapping):
-    def __init__(self, *args, **kwargs):
-        self.store = dict()
-        self.update(dict(*args, **kwargs))  # use the free update to set keys
-
-    def __getitem__(self, key: int) -> JobsBucket:
-        return JobsBucket(key, self.store[self._keytransform(key)])
-
-    def get(self, key: str) -> JobsBucket | None:
-        try:
-            return self.__getitem__(key)
-        except KeyError as ke:
-            return None
-
-    def __setitem__(self, key: str, value: JobsBucket):
-        self.store[self._keytransform(key)] = value.to_dict()
-
-    def __delitem__(self, key):
-        del self.store[self._keytransform(key)]
-
-    def __iter__(self):
-        return iter(self.store)
-
-    def items(self) -> list[tuple[int, JobsBucket]]:
-        return [(key, self.__getitem__(key)) for key in iter(self.store)]
-
-    def values(self) -> list[JobsBucket]:
-        return [self.__getitem__(key) for key in iter(self.store)]
-
-    def __len__(self):
-        return len(self.store)
-
-    def _keytransform(self, key):
-        return key
-
-    def to_raw_dict(self) -> dict[int, dict]:
-        return self.store
-
-
 class JobsDatabase(DefaultObject):
-
-    @property
-    def buckets(self) -> JobsBucketDict:
-        if self.db.buckets is None:
-            self.db.buckets = {}
-        return JobsBucketDict(self.db.buckets)
+    # regular fields
+    buckets: dict[str, JobsBucket] = {}
 
 
 class JobsDatabaseManager:
@@ -329,7 +160,7 @@ class JobsDatabaseManager:
     @property
     def __MAX_ID(self) -> int:
         if self.__max_id == 0:
-            for bucket in self.instance.buckets.values():
+            for bucket in self.data.buckets.values():
                 for jobId in bucket.jobs.keys():
                     if jobId > self.__max_id:
                         self.__max_id = jobId
@@ -337,18 +168,14 @@ class JobsDatabaseManager:
         return self.__max_id
 
     @property
-    def instance(self) -> JobsDatabase:
+    def data(self) -> JobsDatabase:
         if self.__instance is None:
             self.__instance = self.__construct_object(self.key)
 
         return self.__instance
 
     def has_bucket(self, name: str) -> bool:
-        for bucket in self.instance.buckets.keys():
-            if bucket.upper() == name.upper():
-                return True
-
-        return False
+        return self.data.buckets.get(name.upper())
 
     def create_bucket(self, name: str, desc: str) -> tuple[bool, str]:
         if not name.isalpha():
@@ -358,8 +185,8 @@ class JobsDatabaseManager:
             return (False, "#-2 BUCKET NAME EXISTS")
 
         name = name.upper()
-        self.instance.buckets[name] = JobsBucket(name, {'desc': desc, 'jobs': {}})
-        self.instance.save()
+        self.data.buckets[name] = JobsBucket(name, desc)
+        self.data.save()
         return (True, "")
 
     def delete_bucket(self, name: str) -> tuple[bool, str]:
@@ -367,98 +194,94 @@ class JobsDatabaseManager:
             return (False, "#-1 INVALID BUCKET")
 
         name = name.upper()
-        self.instance.buckets = self.instance.buckets.pop(name)
-        self.instance.save()
+        del self.data.buckets[name]
+        self.data.save()
         return (True, "")
 
     def find_job_in_all_buckets(self, job_id: int) -> JobsJob | None:
-        for bucket in self.instance.buckets.values():
+        for bucket in self.data.buckets.values():
             job = bucket.jobs.get(job_id)
             if job is not None:  # We only want to return if we find the job, there may be more buckets to search.
                 return job
 
         return None
 
-    def create_job(self, bucket_name: str, source_id: str, title: str, comment: str) -> tuple[bool, str]:
+    def create_job(self, bucket_name: str = '', source: DefaultCharacter = None, title: str = '', comment: str = '') -> tuple[bool, str]:
         if not self.has_bucket(bucket_name):
             return (False, "#-1 INVALID BUCKET")
 
         id = self.__MAX_ID + 1
-        source = __get_player(source_id)
 
         if source is None:
             return (False, "#-2 INVALID SOURCE")
 
         try:
             bucket_name = bucket_name.upper()
-            self.instance.buckets[bucket_name].add_job(id, JobsJob.construct(
-                id, title, source_id, JobsComment(1, source, comment, datetime.now(), 1)))
+            self.data.buckets[bucket_name].add_job(JobsJob(
+                id=id,
+                title=title,
+                comments=[JobsComment(
+                    text=comment,
+                    vis=0,
+                    raw_source=source.id,
+                    raw_sent=datetime.now().timestamp())],
+                raw_owner=0,
+                raw_opened_on=datetime.now().timestamp(),
+                raw_sources=[source.id]))
 
         except Exception as e:
             return (False, str(e))
         else:
             self.__max_id = id
 
-        self.instance.save()
+        self.data.save()
         return (True, "")
 
     def delete_job(self, job_id: int) -> tuple[bool, str]:
-        found_bucket = None
-
-        for bucket in self.instance.buckets.values():
-            if bucket.jobs.get(job_id) is not None:
-                found_bucket = bucket
-                break
-
-        if found_bucket is None:
-            return (False, "#-1 INVALID JOB ID")
-
-        found_bucket.jobs = found_bucket.jobs.pop(job_id)
-        self.instance.buckets[bucket.name] = found_bucket
-
-        self.instance.save()
-        return (True, "")
-
-    def add_comment(self, job_id: int, comment: str, source_id: str, vis: int) -> tuple[bool, str]:
         try:
-            job = self.find_job(job_id)
+            found_bucket = None
+
+            for bucket in self.data.buckets.values():
+                if bucket.jobs.get(job_id) is not None:
+                    found_bucket = bucket
+                    break
+
+            if found_bucket is None:
+                return (False, "#-1 INVALID JOB ID")
+
+            found_bucket.del_job(job_id)
+            self.data.save()
+            return (True, "")
+        except Exception as e:
+            return (False, str(e))
+
+    def add_comment(self, job_id: int = 0, comment: str = "", source: DefaultCharacter = None, vis: int = 0) -> tuple[bool, str]:
+        try:
+            if source is None:
+                return (False, "#-2 INVALID SOURCE")
+
+            job = self.find_job_in_all_buckets(job_id)
             if job is None:
                 return (False, "#-1 INVALID JOB ID")
 
-            comm_id = max(job.comments.keys() or [0]) + 1
-
-            comment = JobsComment(comm_id, source_id, comment, datetime.now(), vis)
-            job.comments[comm_id] = comment
-
-            self.instance.save()
+            job.add_comment(JobsComment(comment, vis, source.id, datetime.now().timestamp()))
+            self.data.save()
             return (True, "")
         except Exception as e:
             return (False, str(e))
 
     def delete_comment(self, job_id: int, comment_id: int) -> tuple[bool, str]:
         try:
-            job = self.find_job(job_id)
+            job = self.find_job_in_all_buckets(job_id)
             if job is None:
                 return (False, "#-1 INVALID JOB ID")
 
-            comment = job.comments.get(comment_id)
+            comment = job.comments[comment_id - 1]
             if comment is None:
                 return (False, "#-2 INVALID COMMENT ID")
 
-            job.comments = job.comments.pop(comment_id)
-            self.instance.save()
-            return (True, "")
-        except Exception as e:
-            return (False, str(e))
-
-    def update_source(self, job_id: int, source_ids: list[str]) -> tuple[bool, str]:
-        try:
-            job = self.find_job(job_id)
-            if job is None:
-                return (False, "#-1 INVALID JOB ID")
-
-            job.source = "|".join(source_ids)
-            self.instance.save()
+            job.delete_comment(comment_id)
+            self.data.save()
             return (True, "")
         except Exception as e:
             return (False, str(e))
