@@ -60,7 +60,7 @@ class JobsComment:
         return {self.id: self.__dict}
 
 
-class JobsCommentList(MutableMapping):
+class JobsCommentDict(MutableMapping):
     def __init__(self, *args, **kwargs):
         self.store = dict()
         self.update(dict(*args, **kwargs))  # use the free update to set keys
@@ -153,10 +153,10 @@ class JobsJob:
         self.__dict['title'] = value
 
     @property
-    def comments(self) -> JobsCommentList:
+    def comments(self) -> JobsCommentDict:
         if self.__dict('comments') is None:
             self.__dict['comments'] = {}
-        return JobsCommentList(self.__dict['comments'])
+        return JobsCommentDict(self.__dict['comments'])
 
     def add_comment(self, comment: JobsComment) -> tuple[bool, str]:
         try:
@@ -164,12 +164,12 @@ class JobsJob:
             return (True, "")
         except Exception as e:
             return (False, str(e))
-        
+
     def delete_comment(self, id: int) -> tuple[bool, str]:
         try:
             if self.comments.get(id) is None:
                 return (False, "#-1 INVALID COMMENT ID")
-            
+
             del self.comments[id]
         except Exception as e:
             return (False, str(e))
@@ -182,7 +182,7 @@ class JobsJob:
         return False
 
 
-class JobsJobList(MutableMapping):
+class JobsJobDict(MutableMapping):
     def __init__(self, *args, **kwargs):
         self.store = dict()
         self.update(dict(*args, **kwargs))  # use the free update to set keys
@@ -239,10 +239,10 @@ class JobsBucket:
         self.__dict['desc'] = value
 
     @property
-    def jobs(self) -> JobsJobList:
+    def jobs(self) -> JobsJobDict:
         if self.__dict.get('jobs') is None:
             self.__dict['jobs'] = {}
-        return JobsJobList(self.__dict.get('jobs'))
+        return JobsJobDict(self.__dict['jobs'])
 
     def add_job(self, id: int, job: JobsJob) -> tuple[bool, str]:
         try:
@@ -250,24 +250,63 @@ class JobsBucket:
             return (True, "")
         except Exception as e:
             return (False, str(e))
-    
+
     def delete_job(self, id: int) -> tuple[bool, str]:
         try:
             if self.jobs.get(id) is None:
                 return (False, "#-1 INVALID JOB ID")
-            
+
             del self.jobs[id]
         except Exception as e:
             return (False, str(e))
 
 
+class JobsBucketDict(MutableMapping):
+    def __init__(self, *args, **kwargs):
+        self.store = dict()
+        self.update(dict(*args, **kwargs))  # use the free update to set keys
+
+    def __getitem__(self, key: int) -> JobsBucket:
+        return JobsBucket(key, self.store[self._keytransform(key)])
+
+    def get(self, key: str) -> JobsBucket | None:
+        try:
+            return self.__getitem__(key)
+        except KeyError as ke:
+            return None
+
+    def __setitem__(self, key: str, value: JobsBucket):
+        self.store[self._keytransform(key)] = value.to_dict()
+
+    def __delitem__(self, key):
+        del self.store[self._keytransform(key)]
+
+    def __iter__(self):
+        return iter(self.store)
+
+    def items(self) -> list[tuple[int, JobsBucket]]:
+        return [(key, self.__getitem__(key)) for key in iter(self.store)]
+
+    def values(self) -> list[JobsBucket]:
+        return [self.__getitem__(key) for key in iter(self.store)]
+
+    def __len__(self):
+        return len(self.store)
+
+    def _keytransform(self, key):
+        return key
+
+    def to_raw_dict(self) -> dict[int, dict]:
+        return self.store
+
+
 class JobsDatabase(DefaultObject):
 
     @property
-    def buckets(self) -> dict[str, JobsBucket]:
+    def buckets(self) -> JobsBucketDict:
         if self.db.buckets is None:
             self.db.buckets = {}
-        return {name: JobsBucket(name, data) for name, data in self.db.buckets.items()}
+        return JobsBucketDict(self.db.buckets)
 
 
 class JobsDatabaseManager:
@@ -332,7 +371,7 @@ class JobsDatabaseManager:
         self.instance.save()
         return (True, "")
 
-    def find_job(self, job_id: int) -> JobsJob | None:
+    def find_job_in_all_buckets(self, job_id: int) -> JobsJob | None:
         for bucket in self.instance.buckets.values():
             job = bucket.jobs.get(job_id)
             if job is not None:  # We only want to return if we find the job, there may be more buckets to search.
@@ -352,8 +391,8 @@ class JobsDatabaseManager:
 
         try:
             bucket_name = bucket_name.upper()
-            self.instance.buckets[bucket_name].jobs[id] = JobsJob.construct(
-                id, title, source_id, JobsComment(1, source, comment, datetime.now(), 1))
+            self.instance.buckets[bucket_name].add_job(id, JobsJob.construct(
+                id, title, source_id, JobsComment(1, source, comment, datetime.now(), 1)))
 
         except Exception as e:
             return (False, str(e))
